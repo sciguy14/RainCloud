@@ -60,12 +60,10 @@ def setOutput(state):
 	headers = {'Authorization' : 'Bearer ' + config.get('CloudModule', 'token'),
 			   'Accept'        : 'application/vnd.littlebits.v2+json'}
 	if state == True:
-		data = {'duration_ms':'-1'} #Turns output on indefinitely
+		data = {'percent'     :'100', #Full Intensity
+				'duration_ms':'-1'}  #Turns output on indefinitely
 	else:
-		#Note: This is a hack. I should be setting the 'amount' variable to 0 in the payload,
-		#      but the API is refusing calls to that variable.
-		#      As a result, the light will blink for a millisecond if it is already off, and should stay off.
-		data = {'duration_ms':'1'}  #Turn output off indefinitely
+		data = {'percent':'0'}  #Turn output off indefinitely
         
 	r = requests.post(url, data=json.dumps(data), headers=headers)
 	[success, code, reason] = [r.status_code == requests.codes.ok, r.status_code, r.reason]
