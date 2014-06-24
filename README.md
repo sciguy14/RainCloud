@@ -7,40 +7,35 @@ What you'll need
 	* Micro USB Power Bit
 	* Force Sensor Bit
 	* EL Wire Bit
-* An always on Linux Machine. This can be a Raspberry Pi, a server in a remote data center, or anything in between. This instructions assume a debian-based distro, like ubuntu.
+* An always on Linux Machine. This can be a Raspberry Pi, a server in a remote data center, or anything in between. These instructions assume a debian-based distro, like ubuntu.
 
 Prepare the Configuration File
 ------------------------------
 * Rename "config_sample.ini" to "config.ini".
-* Set The values in the "Preferences" and "Location" sections. You'll change the "CloudModule" section in the next steps.
+* Add lat/lng coordinates in the "Location" section, using the format shown. You can determine the lat/lng of your location by searching for it in Google Maps, and copying the latitude and longitude from the resulting search URL. For each day of the week, include a list of the palces where you'll be. This is usually your home/work coordinates on weekdays, and your home coordinates on weekends. The script will check for chances of precipitation at those locations.
+* Set the threshold value in the "Preferences" section based on when you want the RainCloud to light up.
 
-Setup your LittleBits Account, and your Cloud Module
-----------------------------------------------------
+Setup your LittleBits CloudMole, and set its Token/Device ID
+------------------------------------------------------------
 * Visit [http://littlebits.cc/cloudstart] and follow the instructions to setup the module.
 * Set an easily recognizable, unique label for your cloud module.
-
-Ensure json_pp is installed to make JSON outputs more readable
---------------------------------------------------------------
-* sudo apt-get install libjson-pp-perl
-
-Set your Authorization Token and Device ID
-------------------------------------------
+* Ensure json_pp is install to make the next steps easier: sudo apt-get install libjson-pp-perl
 * Follow these instructions [http://developer.littlebitscloud.cc/access] to locate your access token.
 * Specify your access token in the config.ini file.
-* Open up a terminal and enter this command, replacing TOKEN with actual token value that you just copied into config.ini. If you chose not to install jsonpp, omit the pipe at the end of this command:  curl -XGET -H "Authorization: Bearer TOKEN" -H "Accept: application/vnd.littlebits.v2+json" http://api-http.littlebitscloud.cc/devices | json_pp
+* Open up a terminal and enter this command, replacing TOKEN with actual token value that you just copied into config.ini:  curl -XGET -H "Authorization: Bearer TOKEN" -H "Accept: application/vnd.littlebits.v2+json" http://api-http.littlebitscloud.cc/devices | json_pp
 * Find the cloud module specified by your unique label, and add the "id" field output into the config.ini file.
+
+Set your Forecast.io API Key
+----------------------------
+* Visit https://developer.forecast.io/register and sign up for an account
+* Copy your API from the bottom of the page into the config.ini file
 
 Install the Python Preqrequistes
 --------------------------------
 * Install Python 2.7 if don't already have it installed: sudo apt-get install python2.7
 * Install Python PIP if you haven't already: sudo apt-get install python-dev python-pip
-* Instal the Python Requests Library: sudo pip install requests
-* Install the Python Weather API Library: 
-    * wget https://launchpad.net/python-weather-api/trunk/0.3.8/+download/pywapi-0.3.8.tar.gz
-    * tar -zxvf pywapi-0.3.8.tar.gz
-    * rm pywapi-0.3.8.tar.gz
-    * cd pywapi-0.3.8
-    * python setup.py build
+* Install the Python Requests Library: sudo pip install requests
+* Install the Forecast.IO Library: sudo pip install python-forecastio
 
 TODO: Complete this documentation
 Git clone my repo
