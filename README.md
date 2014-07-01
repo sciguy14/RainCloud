@@ -37,10 +37,23 @@ Install the Python Preqrequistes
 * Install the Python Requests Library: sudo pip install requests
 * Install the Forecast.IO Library: sudo pip install python-forecastio
 
+Setting up the file
+-------------------
+* Copy the file to your server
+* Make it executable: chmod 755 RainCloud.py
+* Setup a Cronjob: crontab -e, Add: */10 * * * *   /PATH_TO_PYTHON_FILE/RainCloud.py
+
+Optional: Setup Subscription Service
+------------------------------------
+* Populate appropriate fields in config file
+* run ./RainCloud.py - s, you only need to do it once
+* It will now send a post request to this server when ever the umbrella is inserted or removed
+* Launch a continously running web service to handle those incoming post requests
+* ./RainCloud.py -l
+
+
 TODO: Complete this documentation
 Git clone my repo
-make the program executable: chmod 755 RainCloud.py
-Setup a cron job
 
 License
 =======

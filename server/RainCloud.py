@@ -7,7 +7,7 @@
 # License: GPL v3 (http://www.gnu.org/licenses/gpl.html)
 
 #Import needed libraries
-import sys, ConfigParser, datetime, forecastio, requests, json, ast, argparse
+import sys, ConfigParser, datetime, forecastio, requests, json, ast, argparse, cgi, pprint
 from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
 
 #Read configuration file
@@ -71,7 +71,7 @@ def main():
                 except KeyboardInterrupt:
                         server.socket.close() 
         
-        #Not listening or setup mode
+        #Not listening or setup mode (Override or Normal operation)
         else:
                 #Trigger Override
                 if args.has_key('override') and args['override'] is not None:
@@ -181,12 +181,22 @@ def getForecast(lat,lng):
 	return worst_case_chance_precip
 
 class customHTTPServer(BaseHTTPRequestHandler):
-        def do_GET(self):
+        def do_POST(self):
+                #Help from: http://pymotw.com/2/BaseHTTPServer/
+                form = cgi.FieldStorage(
+                        fp=self.rfile, 
+                        headers=self.headers,
+                        environ={'REQUEST_METHOD':'POST',
+                        'CONTENT_TYPE':self.headers['Content-Type'],
+                })
+
+                # Begin the response
                 self.send_response(200)
-                self.send_header('Content-type', 'text/html')
                 self.end_headers()
-                self.wfile.write('<HTML><body>Hello World!</body></HTML>')
-                return 
+
+                # Echo back information about what was posted in the form
+                pprint.pprint(form)
+                return
 
 #Run the Main funtion when this python script is executed
 if __name__ == '__main__':
