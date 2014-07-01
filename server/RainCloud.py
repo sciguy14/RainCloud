@@ -7,7 +7,7 @@
 # License: GPL v3 (http://www.gnu.org/licenses/gpl.html)
 
 #Import needed libraries
-import sys, ConfigParser, datetime, forecastio, requests, json, ast
+import sys, ConfigParser, datetime, forecastio, requests, json, ast, argparse
 
 #Read configuration file
 config = ConfigParser.ConfigParser()
@@ -16,33 +16,54 @@ config.read("config.ini")
 #Main program execution
 def main():
 
-	#Perform Preflight Checks 
+        #Perform Preflight Checks 
 	#TODO: Confirm valid values in the config file
 
-	#Let's get today's weather forecast!
-	print "Checking the weather..."
-	forecast_date = datetime.date.today()
-	weekday = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-	locations = [location for location in config.get('Location', weekday[forecast_date.weekday()]).split(';')]
-	activate = False
-	for location in locations:
-		latlng = ast.literal_eval(location)
-		chance_precip = getForecast(latlng[0], latlng[1])
-		if chance_precip == -1:
-			print "Could not get forecast for location " + location + ". Skipping."
-		else:
-			print "There is a " + str(chance_precip) + "% chance of rain at location " + location + " over the next " + config.get('Preferences', 'look_ahead_hours') + " hours.",
-			if chance_precip >= int(config.get('Preferences','threshold')):
-				print "(Above threshold of " + config.get('Preferences','threshold') + "%)"
-				activate = True;
-			else:
-				print "(Below threshold of " + config.get('Preferences','threshold') + "%)"
-	if activate:
-		print "You should bring an umbrella today."
-		sys.stdout.write("Making sure RainCloud is enabled...")
-	else:
-		print "You don't need an umbrella today."
-		sys.stdout.write("Making sure RainCloud is disabled...")
+        #Parse optional override argument
+        parser = argparse.ArgumentParser(description='Controller for the RainCloud Umbrella Minder')
+        parser.add_argument('-o','--override', help='Use "-o on" or "-o off" to manually override the current setting,\
+                                                      and control the RainCloud manually. Note, if you\'re running\
+                                                      this as a cron job, your manual setting may quickly overriden.', required=False)
+        args = vars(parser.parse_args())
+
+        #Trigger Override
+        if args.has_key('override') and args['override'] is not None:
+                if args['override'] == "on":
+                        sys.stdout.write("Override enabled. Turning on RainCloud...")
+                        activate = True
+                elif args['override'] == "off":
+                        sys.stdout.write("Override enabled. Turning off RainCloud...")
+                        activate = False
+                else:
+                        print "Invalid override option. Valid options are 'on' or 'off'. Exiting."
+                        exit()
+        #No override triggered. Let's get today's weather forecast!
+        else:
+                print "Checking the weather..."
+                forecast_date = datetime.date.today()
+                weekday = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+                locations = [location for location in config.get('Location', weekday[forecast_date.weekday()]).split(';')]
+                activate = False
+                for location in locations:
+                        latlng = ast.literal_eval(location)
+                        chance_precip = getForecast(latlng[0], latlng[1])
+                        if chance_precip == -1:
+                                print "Could not get forecast for location " + location + ". Skipping."
+                        else:
+                                print "There is a " + str(chance_precip) + "% chance of rain at location " + location + " over the next " + config.get('Preferences', 'look_ahead_hours') + " hours.",
+                                if chance_precip >= int(config.get('Preferences','threshold')):
+                                        print "(Above threshold of " + config.get('Preferences','threshold') + "%)"
+                                        activate = True;
+                                else:
+                                        print "(Below threshold of " + config.get('Preferences','threshold') + "%)"
+                if activate:
+                        print "You should bring an umbrella today."
+                        sys.stdout.write("Making sure RainCloud is enabled...")
+                else:
+                        print "You don't need an umbrella today."
+                        sys.stdout.write("Making sure RainCloud is disabled...")
+
+        #Use the LittleBits API to setup the RainCloud
 	[success, code, reason] = setOutput(activate)
 	if success:
 		print "Success!"
