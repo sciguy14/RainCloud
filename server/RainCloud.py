@@ -8,6 +8,7 @@
 
 #Import needed libraries
 import sys, ConfigParser, datetime, forecastio, requests, json, ast, argparse
+from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
 
 #Read configuration file
 config = ConfigParser.ConfigParser()
@@ -19,59 +20,105 @@ def main():
         #Perform Preflight Checks 
 	#TODO: Confirm valid values in the config file
 
-        #Parse optional override argument
-        parser = argparse.ArgumentParser(description='Controller for the RainCloud Umbrella Minder')
+        #Parse optional override argument and determine if the script is launching in listening mode
+        parser = argparse.ArgumentParser(description='Controller for the RainCloud Umbrella Minder. Omit arguments to run normal update routine.')
         parser.add_argument('-o','--override', help='Use "-o on" or "-o off" to manually override the current setting,\
                                                       and control the RainCloud manually. Note, if you\'re running\
                                                       this as a cron job, your manual setting may quickly overriden.', required=False)
+        parser.add_argument('-l','--listen', help='Launch in continuous listening mode with to \
+                                                   setup the listening service for the force sensor', required=False, action='store_true')
+        parser.add_argument('-s','--setup', help='Sets up your Cloud Module to send its input state to this server', required=False, action='store_true')
         args = vars(parser.parse_args())
 
-        #Trigger Override
-        if args.has_key('override') and args['override'] is not None:
-                if args['override'] == "on":
-                        sys.stdout.write("Override enabled. Turning on RainCloud...")
-                        activate = True
-                elif args['override'] == "off":
-                        sys.stdout.write("Override enabled. Turning off RainCloud...")
-                        activate = False
-                else:
-                        print "Invalid override option. Valid options are 'on' or 'off'. Exiting."
-                        exit()
-        #No override triggered. Let's get today's weather forecast!
-        else:
-                print "Checking the weather..."
-                forecast_date = datetime.date.today()
-                weekday = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-                locations = [location for location in config.get('Location', weekday[forecast_date.weekday()]).split(';')]
-                activate = False
-                for location in locations:
-                        latlng = ast.literal_eval(location)
-                        chance_precip = getForecast(latlng[0], latlng[1])
-                        if chance_precip == -1:
-                                print "Could not get forecast for location " + location + ". Skipping."
-                        else:
-                                print "There is a " + str(chance_precip) + "% chance of rain at location " + location + " over the next " + config.get('Preferences', 'look_ahead_hours') + " hours.",
-                                if chance_precip >= int(config.get('Preferences','threshold')):
-                                        print "(Above threshold of " + config.get('Preferences','threshold') + "%)"
-                                        activate = True;
-                                else:
-                                        print "(Below threshold of " + config.get('Preferences','threshold') + "%)"
-                if activate:
-                        print "You should bring an umbrella today."
-                        sys.stdout.write("Making sure RainCloud is enabled...")
-                else:
-                        print "You don't need an umbrella today."
-                        sys.stdout.write("Making sure RainCloud is disabled...")
+        #Can only be in one of override, listen, or setup modes
+        args_count = 0
+        if args.has_key('override') and args['override']:
+                args_count = args_count + 1
+        if args.has_key('listen') and args['listen']:
+                args_count = args_count + 1
+        if args.has_key('setup') and args['setup']:
+                args_count = args_count +1
+        if args_count > 1:
+                print "You can only specify one of 'override', 'listen', or 'setup' modes at a time. Exiting."
 
-        #Use the LittleBits API to setup the RainCloud
-	[success, code, reason] = setOutput(activate)
-	if success:
-		print "Success!"
-	else:
-		#TODO: The API currently returns an HTTP 200, even when the device is disconnected from power. LittleBits is aware of this limitation, and is investigating what HTTP Status codes could be used to convey this error, if it occurs.
-		print "Failed!"
-		print "An Error " + str(code) + " was thrown when trying to command cloud module " + config.get('CloudModule', 'id') + "."
-		print "Error Details: " + reason
+        #Setup Mode (Create LittleBits Subscription service)
+        elif args.has_key('setup') and args['setup']:
+                #Delete existing suscriptions to this server
+                sys.stdout.write("Deleting existing publishing to " + config.get('Server', 'FQDN') + ":" + config.get('Server', 'port') + "...")
+                [success, code, reason] = deleteSubscription()
+                if success:
+                        print "Success!"
+                else:
+                        print "Failed!"
+                        print "An Error " + str(code) + " was thrown when trying to delete existing subscriptions for cloud module " + config.get('CloudModule', 'id') + "."
+                        print "Error Details: " + reason
+                #Use the LittleBits API to setup the subscriptions
+                sys.stdout.write("Subscribing " + config.get('Server', 'FQDN') + ":" + config.get('Server', 'port') + " to ignite & release triggers...")
+                [success, code, reason] = setSubscription()
+                if success:
+                        print "Success!"
+                else:
+                        print "Failed!"
+                        print "An Error " + str(code) + " was thrown when trying to configure subscriptions for cloud module " + config.get('CloudModule', 'id') + "."
+                        print "Error Details: " + reason
+
+        #Listening Mode (Start server)
+        elif args.has_key('listen') and args['listen']:
+                try:
+                        server = HTTPServer(('',int(config.get('Server', 'port'))),customHTTPServer)
+                        print "Server launched on port " + config.get('Server', 'port') + " to listen for data from the RainCloud..."
+                        server.serve_forever()
+                except KeyboardInterrupt:
+                        server.socket.close() 
+        
+        #Not listening or setup mode
+        else:
+                #Trigger Override
+                if args.has_key('override') and args['override'] is not None:
+                        if args['override'] == "on":
+                                sys.stdout.write("Override enabled. Turning on RainCloud...")
+                                activate = True
+                        elif args['override'] == "off":
+                                sys.stdout.write("Override enabled. Turning off RainCloud...")
+                                activate = False
+                        else:
+                                print "Invalid override option. Valid options are 'on' or 'off'. Exiting."
+                                exit()
+                #No override triggered. Let's get today's weather forecast!
+                else:
+                        print "Checking the weather..."
+                        forecast_date = datetime.date.today()
+                        weekday = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+                        locations = [location for location in config.get('Location', weekday[forecast_date.weekday()]).split(';')]
+                        activate = False
+                        for location in locations:
+                                latlng = ast.literal_eval(location)
+                                chance_precip = getForecast(latlng[0], latlng[1])
+                                if chance_precip == -1:
+                                        print "Could not get forecast for location " + location + ". Skipping."
+                                else:
+                                        print "There is a " + str(chance_precip) + "% chance of rain at location " + location + " over the next " + config.get('Preferences', 'look_ahead_hours') + " hours.",
+                                        if chance_precip >= int(config.get('Preferences','threshold')):
+                                                print "(Above threshold of " + config.get('Preferences','threshold') + "%)"
+                                                activate = True;
+                                        else:
+                                                print "(Below threshold of " + config.get('Preferences','threshold') + "%)"
+                        if activate:
+                                print "You should bring an umbrella today."
+                                sys.stdout.write("Making sure RainCloud is enabled...")
+                        else:
+                                print "You don't need an umbrella today."
+                                sys.stdout.write("Making sure RainCloud is disabled...")
+
+                #Use the LittleBits API to setup the RainCloud
+                [success, code, reason] = setOutput(activate)
+                if success:
+                        print "Success!"
+                else:
+                        #TODO: The API currently returns an HTTP 200, even when the device is disconnected from power. LittleBits is aware of this limitation, and is investigating what HTTP Status codes could be used to convey this error, if it occurs.
+                        print "Failed!"
+                        print "An Error " + str(code) + " was thrown when trying to command cloud module " + config.get('CloudModule', 'id') + "."
+                        print "Error Details: " + reason
 
 #Sets the output State of the cloud bit. Stays set to this value until another command is issued.
 #state = True or False
@@ -79,15 +126,42 @@ def main():
 def setOutput(state):
 	url = "http://api-http.littlebitscloud.cc/devices/" + config.get('CloudModule', 'id') + "/output"
 	headers = {'Authorization' : 'Bearer ' + config.get('CloudModule', 'token'),
-			   'Accept'        : 'application/vnd.littlebits.v2+json'}
+		   'Accept'        : 'application/vnd.littlebits.v2+json'}
 	if state == True:
-		data = {'percent'     :'100', #Full Intensity
-				'duration_ms':'-1'}  #Turns output on indefinitely
+		data = {'percent'     : '100', #Full Intensity
+		        'duration_ms' : '-1'}  #Turns output on indefinitely
 	else:
 		data = {'percent':'0'}  #Turn output off indefinitely
         
 	r = requests.post(url, data=json.dumps(data), headers=headers)
 	[success, code, reason] = [r.status_code == requests.codes.ok, r.status_code, r.reason]
+	return [success, code, reason]
+
+#Deletes an existing Subscription to our server. Necessary if we need to reconfigure for some reason.
+def deleteSubscription():
+        url = "https://api-http.littlebitscloud.cc/subscriptions"
+        headers = {'Authorization' : 'Bearer ' + config.get('CloudModule', 'token'),
+	           'Accept'        : 'application/vnd.littlebits.v2+json'}
+        data = {'publisher_id'     :  config.get('CloudModule', 'id'),
+                'subscriber_id'    : 'http://' + config.get('Server', 'FQDN') + ":" + config.get('Server', 'port')}
+        r = requests.delete(url, data=json.dumps(data), headers=headers)
+        [success, code, reason] = [r.status_code == requests.codes.ok, r.status_code, r.reason]
+	return [success, code, reason]
+
+#Subscribes our server to input events for our cloud bit
+#Returns sucess (True/False), Status Code, and Status Reason
+def setSubscription():
+        url = "https://api-http.littlebitscloud.cc/subscriptions"
+        headers = {'Authorization' : 'Bearer ' + config.get('CloudModule', 'token'),
+	           'Accept'        : 'application/vnd.littlebits.v2+json'}
+        data = {'publisher_id'     :  config.get('CloudModule', 'id'),
+                'subscriber_id'    : 'http://' + config.get('Server', 'FQDN') + ":" + config.get('Server', 'port'),
+                'publisher_events' : ['amplitude:delta:ignite', 'amplitude:delta:release']}
+        r = requests.post(url, data=json.dumps(data), headers=headers)
+        [success, code, reason] = [r.status_code == requests.codes.ok, r.status_code, r.reason]
+        #201 is actually a success code, so this handles that.
+        if code == 201:
+                success = True
 	return [success, code, reason]
 
 #Accepts a latitude and longitude (floats), and returns the worst-case chance of rain over the next 12 hours
@@ -105,6 +179,14 @@ def getForecast(lat,lng):
 		except AttributeError:
 			worst_case_chance_precip = -1
 	return worst_case_chance_precip
+
+class customHTTPServer(BaseHTTPRequestHandler):
+        def do_GET(self):
+                self.send_response(200)
+                self.send_header('Content-type', 'text/html')
+                self.end_headers()
+                self.wfile.write('<HTML><body>Hello World!</body></HTML>')
+                return 
 
 #Run the Main funtion when this python script is executed
 if __name__ == '__main__':
