@@ -41,7 +41,8 @@ Setting up the file
 -------------------
 * Copy the file to your server
 * Make it executable: chmod 755 RainCloud.py
-* Setup a Cronjob: crontab -e, Add: */10 * * * *   /PATH_TO_PYTHON_FILE/RainCloud.py
+* Setup a Cronjob: crontab -e, Add: */10 * * * *   cd /PATH_TO_FILE;./RainCloud.py
+
 
 Optional: Setup Subscription Service
 ------------------------------------

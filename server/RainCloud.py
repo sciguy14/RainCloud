@@ -7,7 +7,7 @@
 # License: GPL v3 (http://www.gnu.org/licenses/gpl.html)
 
 #Import needed libraries
-import sys, ConfigParser, datetime, forecastio, requests, json, ast, argparse, cgi, pprint
+import sys, ConfigParser, datetime, forecastio, requests, json, ast, argparse, urlparse
 from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
 
 #Read configuration file
@@ -76,10 +76,10 @@ def main():
                 #Trigger Override
                 if args.has_key('override') and args['override'] is not None:
                         if args['override'] == "on":
-                                sys.stdout.write("Override enabled. Turning on RainCloud...")
+                                sys.stdout.write("Override enabled. ")
                                 activate = True
                         elif args['override'] == "off":
-                                sys.stdout.write("Override enabled. Turning off RainCloud...")
+                                sys.stdout.write("Override enabled. ")
                                 activate = False
                         else:
                                 print "Invalid override option. Valid options are 'on' or 'off'. Exiting."
@@ -103,12 +103,16 @@ def main():
                                                 activate = True;
                                         else:
                                                 print "(Below threshold of " + config.get('Preferences','threshold') + "%)"
-                        if activate:
-                                print "You should bring an umbrella today."
-                                sys.stdout.write("Making sure RainCloud is enabled...")
-                        else:
-                                print "You don't need an umbrella today."
-                                sys.stdout.write("Making sure RainCloud is disabled...")
+                if activate:
+                        print "You should bring an umbrella today."
+                        with open("forecast.txt", "w") as f:
+                                f.write("yes\n")
+                        sys.stdout.write("Making sure RainCloud is enabled...")
+                else:
+                        print "You don't need an umbrella today."
+                        with open("forecast.txt", "w") as f:
+                                f.write("no\n")
+                        sys.stdout.write("Making sure RainCloud is disabled...")
 
                 #Use the LittleBits API to setup the RainCloud
                 [success, code, reason] = setOutput(activate)
@@ -181,22 +185,57 @@ def getForecast(lat,lng):
 	return worst_case_chance_precip
 
 class customHTTPServer(BaseHTTPRequestHandler):
+        #POSTS come exclusively from the Little Bits Cloud
         def do_POST(self):
-                #Help from: http://pymotw.com/2/BaseHTTPServer/
-                form = cgi.FieldStorage(
-                        fp=self.rfile, 
-                        headers=self.headers,
-                        environ={'REQUEST_METHOD':'POST',
-                        'CONTENT_TYPE':self.headers['Content-Type'],
-                })
+                sys.stdout.write("POST Received...")
+                length = int(self.headers.getheader('content-length'))
+                postvars = urlparse.parse_qs(self.rfile.read(length), keep_blank_values=1)
 
-                # Begin the response
-                self.send_response(200)
-                self.end_headers()
-
-                # Echo back information about what was posted in the form
-                pprint.pprint(form)
+                # Decode the POST data
+                self.wfile.write(postvars)
+                data = json.loads(postvars.keys()[0])
+                if data['bit_id'] == config.get('CloudModule', 'id'):
+                        self.send_response(200)
+                        self.end_headers()
+                        with open("state.txt", "w") as f:
+                                f.write(data['payload']['level'] + "\n")
+                        print "State set to " + data['payload']['level'] + "."
+                else:
+                        self.send_response(401)
+                        self.end_headers()
+                        print "Bit ID mismatch. Request denied."
                 return
+        #GETS come exclusively from 
+        def do_GET(self):
+                sys.stdout.write("GET Received...")
+                getvars = urlparse.parse_qs(urlparse.urlparse(self.path).query)
+                if getvars.has_key('key') and getvars['key'][0] == config.get('Server', 'key'):
+                        print "The user has left the home."
+                        self.send_response(200)
+                        self.send_header("Content-type", "text/plain")
+                        self.end_headers()
+                        with open("state.txt") as f:
+                                state_file = f.readlines()
+                        with open("forecast.txt") as f:
+                                forecast_file = f.readlines()
+                        state = state_file[0].strip()
+                        forecast = forecast_file[0].strip()
+                        if state == "active" and forecast == "yes":
+                                #Umbrella Left Behind, and it's going to rain!
+                                print 'Umbrella needed, but left behind. Informing user.'
+                                self.wfile.write('It\'s going to rain! Get your umbrella!')
+                        elif state == "idle" and forecast == "yes":
+                                #Umbrella taken, and it's going to rain!
+                                print 'Umbrella needed, and taken by user. Nothing sent to user.'
+                        else:
+                                #It's not going to rain!
+                                print 'No Rain today! Nothing sent to user'     
+                else:
+                        print "Key mismatch. Request denied."
+                        self.send_response(401)
+                        self.end_headers()
+                return
+                
 
 #Run the Main funtion when this python script is executed
 if __name__ == '__main__':
