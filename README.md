@@ -54,6 +54,9 @@ Optional: Setup Subscription Service
 
 
 TODO: Complete this documentation
+Start listening service on boot - run in background
+make block diagram
+setting up tasker
 Git clone my repo
 
 License
