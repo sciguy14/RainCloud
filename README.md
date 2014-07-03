@@ -50,13 +50,14 @@ Optional: Setup Subscription Service
 * run ./RainCloud.py - s, you only need to do it once
 * It will now send a post request to this server when ever the umbrella is inserted or removed
 * Launch a continously running web service to handle those incoming post requests
-* ./RainCloud.py -l
+* Put in crontab for launch. @reboot cd /home/pi/RainCloud;./RainCloud.py -l > log.txt 2>&1 &
+
 
 
 TODO: Complete this documentation
-Start listening service on boot - run in background
 make block diagram
 setting up tasker
+consider adding logrotate for listening service
 Git clone my repo
 
 License
