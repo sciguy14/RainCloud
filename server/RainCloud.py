@@ -23,11 +23,12 @@ def main():
         #Parse optional override argument and determine if the script is launching in listening mode
         parser = argparse.ArgumentParser(description='Controller for the RainCloud Umbrella Minder. Omit arguments to run normal update routine.')
         parser.add_argument('-o','--override', help='Use "-o on" or "-o off" to manually override the current setting,\
-                                                      and control the RainCloud manually. Note, if you\'re running\
-                                                      this as a cron job, your manual setting may quickly overriden.', required=False)
-        parser.add_argument('-l','--listen', help='Launch in continuous listening mode with to \
-                                                   setup the listening service for the force sensor', required=False, action='store_true')
-        parser.add_argument('-s','--setup', help='Sets up your Cloud Module to send its input state to this server', required=False, action='store_true')
+                                                     and control the RainCloud manually. Note, if you\'re running\
+                                                     this as a cron job, your manual setting may be quickly overriden.', required=False)
+        parser.add_argument('-l','--listen', help='Launch in continuous listening mode to run\
+                                                   the listening service for the force sensor.', required=False, action='store_true')
+        parser.add_argument('-s','--setup', help='Sets up your Cloud Module to send its input state to this server.\
+                                                  You only need to run this once.', required=False, action='store_true')
         args = vars(parser.parse_args())
 
         #Can only be in one of override, listen, or setup modes
