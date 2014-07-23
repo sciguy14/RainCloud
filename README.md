@@ -5,10 +5,7 @@ The *RainCloud* is a web-connected smart umbrella holder. Built around the [Litt
 Parts and Instructions
 ======================
 A list of all needed parts, as well as detailed instructions on how to build the *RainCloud* is available on my website: <http://www.jeremyblum.com/2014/07/23/raincloud/>
-
-RainCloud.py Usage Instructions
-===============================
-
+						
 License
 =======
 This work is licensed under the [GNU GPL v3](http://www.gnu.org/licenses/gpl.html).
